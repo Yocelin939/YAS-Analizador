@@ -1,0 +1,965 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>YAS - Analizador de Errores Léxicos</title>
+
+<style>
+
+:root {
+    --fondo: #EDE2F6;
+    --blanco: #FFFFFF;
+    --lila: #E9DDF5;
+    --morado: #956EB5;
+    --oscuro: #62447F;
+    --rosa: #F8DCE9;
+    --texto: #493B55;
+    --borde: #DCCBEA;
+    --verde: #E1F3E7;
+    --rojo: #FCE3E8;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 0;
+    background: #EDE2F6;
+    font-family: Segoe UI, Arial, sans-serif;
+    color: var(--texto);
+    position: relative;
+}
+
+/* Decoración floral del fondo */
+body::before {
+    content:
+        "✿   ❀   ✿   ❀   ✿\A"
+        "   ❀   ✿   ❀   ✿\A"
+        "✿   ❀   ✿   ❀   ✿\A"
+        "   ❀   ✿   ❀   ✿\A"
+        "✿   ❀   ✿   ❀   ✿";
+
+    white-space: pre;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 48px;
+    line-height: 140px;
+    letter-spacing: 25px;
+    color: #D66BAA;
+    opacity: 0.27;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+header {
+    position: relative;
+    z-index: 1;
+    padding: 30px 15px;
+    text-align: center;
+    background: transparent;
+    color: var(--oscuro);
+}
+
+header h1 {
+    margin: 0;
+    font-size: clamp(25px, 4vw, 34px);
+    color: var(--oscuro);
+}
+
+header p {
+    margin: 10px 0 0;
+    color: #806A96;
+    font-size: 15px;
+}
+
+main {
+    max-width: 1200px;
+    margin: 10px auto 26px;
+    padding: 0 18px;
+    position: relative;
+    z-index: 1;
+}
+
+.panel {
+    background: #F8F3FC;
+    border: 1px solid var(--borde);
+    border-radius: 17px;
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(86, 52, 127, 0.10);
+}
+
+h2 {
+    font-size: 20px;
+    margin: 0 0 16px;
+    color: var(--oscuro);
+}
+
+h3 {
+    color: var(--oscuro);
+}
+
+button, select {
+    font: inherit;
+}
+
+button {
+    border: 1px solid #D8C5E9;
+    border-radius: 9px;
+    background: #EDE2F6;
+    color: #654582;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    background: #DFCEEF;
+    transform: translateY(-2px);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+    transform: none;
+}
+
+button.primary {
+    background: #956EB5;
+    border-color: #956EB5;
+    color: white;
+}
+
+button.primary:hover {
+    background: #80589F;
+}
+
+button.active {
+    background: #956EB5;
+    border-color: #956EB5;
+    color: white;
+}
+
+.toolbar, .examples, .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin: 12px 0;
+}
+
+select {
+    padding: 10px 13px;
+    border: 1px solid var(--borde);
+    border-radius: 9px;
+    background: white;
+    color: var(--texto);
+    outline: none;
+}
+
+select:focus {
+    border-color: #A77BC9;
+}
+
+.editor-wrap {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    border: 1px solid #D5C2E7;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #FFFFFF;
+}
+
+#gutter {
+    padding: 14px 8px;
+    text-align: right;
+    color: #A18DAF;
+    background: #F0E7F8;
+    white-space: pre;
+    line-height: 1.55;
+    font: 14px Consolas, monospace;
+}
+
+#codigo {
+    width: 100%;
+    min-height: 230px;
+    resize: vertical;
+    border: 0;
+    outline: 0;
+    padding: 14px;
+    background: #FFFFFF;
+    color: #493B55;
+    line-height: 1.55;
+    font: 14px Consolas, monospace;
+}
+
+#codigo:focus {
+    box-shadow: inset 0 0 0 1px #C5A9DF;
+}
+
+#contador {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #8A7799;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.metric {
+    padding: 16px;
+    border-radius: 13px;
+    background: #F0E7F8;
+    border: 1px solid #E1D2EE;
+}
+
+.metric strong {
+    display: block;
+    font-size: 26px;
+    color: #956EB5;
+}
+
+.metric span {
+    font-size: 13px;
+    color: #806A96;
+}
+
+.status {
+    padding: 13px 16px;
+    border-radius: 12px;
+    margin: 15px 0;
+    background: var(--verde);
+    border: 1px solid #C9E8D2;
+    color: #376C4B;
+}
+
+.status.error {
+    background: var(--rojo);
+    border-color: #F2C8D1;
+    color: #9B4056;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+    background: #FFFFFF;
+}
+
+th, td {
+    text-align: left;
+    padding: 11px;
+    border-bottom: 1px solid #EEE5F4;
+}
+
+th {
+    background: #E9DDF5;
+    color: #62447F;
+}
+
+td {
+    color: #51435D;
+}
+
+tr:hover td {
+    background: #FAF6FD;
+}
+
+.pill {
+    display: inline-block;
+    padding: 4px 9px;
+    border-radius: 20px;
+    background: #EEE5F8;
+    font-size: 12px;
+}
+
+.pill.bad {
+    background: #FFE1E5;
+    color: #A12F46;
+}
+
+.pill.good {
+    background: #E1F4E7;
+    color: #287447;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.result-box {
+    background: #FCFAFF;
+    border: 1px solid var(--borde);
+    padding: 14px;
+    border-radius: 12px;
+    white-space: pre-wrap;
+    color: #51435D;
+    line-height: 1.6;
+}
+
+.token-view {
+    font: 14px Consolas, monospace;
+    line-height: 2;
+    overflow-wrap: anywhere;
+}
+
+.token {
+    padding: 3px 4px;
+    border-radius: 4px;
+    margin: 1px;
+}
+
+.token-error {
+    background: #FFDCE2;
+    color: #A12F46;
+}
+
+.token-reserved {
+    color: #9564C5;
+    font-weight: bold;
+}
+
+.token-number {
+    color: #B66A19;
+}
+
+.token-string {
+    color: #27835B;
+}
+
+.token-comment {
+    color: #91869A;
+    font-style: italic;
+}
+
+.token-operator {
+    color: #C05B91;
+}
+
+.token-identifier {
+    color: #536EAA;
+}
+
+.token-delimiter {
+    color: #9A6B34;
+}
+
+footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 25px;
+    color: #806A96;
+    font-size: 13px;
+}
+
+@media(max-width:650px) {
+    .metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .panel {
+        padding: 16px;
+    }
+
+    header {
+        padding: 24px 18px;
+    }
+}
+
+@media(max-width:380px) {
+    .metrics {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    button {
+        font-size: 13px;
+        padding: 9px 11px;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+
+    <h1>✿ YAS – Analizador de Errores Léxicos</h1>
+
+    <p>
+        Reconocimiento y clasificación de tokens · Autómatas I
+    </p>
+
+</header>
+
+<main>
+
+<section class="panel">
+
+    <h2>🎯 Casos de cátedra obligatorios</h2>
+
+    <div class="examples">
+
+        <button onclick="cargarEjemplo('@valor = 10')">
+            ⚠ Ejemplo 1: @valor = 10
+        </button>
+
+        <button onclick="cargarEjemplo('20 + * 5;')">
+            💡 Ejemplo 2: 20 + * 5;
+        </button>
+
+        <button onclick="cargarEjemplo('numero = 25')">
+            ✓ Ejemplo 3: numero = 25
+        </button>
+
+        <button onclick="cargarEjemplo('12abc = 5')">
+            ⚠ Ejemplo 4: 12abc = 5
+        </button>
+
+    </div>
+
+</section>
+
+<section class="panel">
+
+    <h2>📝 Panel de entrada</h2>
+
+    <div class="toolbar">
+
+        <label for="lenguaje">Lenguaje:</label>
+
+        <select id="lenguaje">
+            <option>Python</option>
+            <option>JavaScript</option>
+            <option>C++</option>
+        </select>
+
+        <button onclick="limpiar()">↻ Limpiar</button>
+
+    </div>
+
+    <div class="editor-wrap">
+
+        <div id="gutter">1</div>
+
+        <textarea
+            id="codigo"
+            spellcheck="false"
+            placeholder="Escribe o pega aquí tu código..."
+        ></textarea>
+
+    </div>
+
+    <div class="toolbar">
+
+        <button class="primary" onclick="analizar()">
+            ▶ Analizar código
+        </button>
+
+        <button onclick="cargarEjemplo('numero = 25')">
+            Cargar ejemplo válido
+        </button>
+
+    </div>
+
+    <div id="contador">
+        0 caracteres · 1 línea
+    </div>
+
+</section>
+
+<section class="panel">
+
+    <h2>📊 Resultados del análisis</h2>
+
+    <div id="estado" class="status">
+        Escribe código y presiona “Analizar código”.
+    </div>
+
+    <div class="metrics">
+
+        <div class="metric">
+            <strong id="mTotal">0</strong>
+            <span>Total de tokens</span>
+        </div>
+
+        <div class="metric">
+            <strong id="mValidos">0</strong>
+            <span>Tokens válidos</span>
+        </div>
+
+        <div class="metric">
+            <strong id="mErrores">0</strong>
+            <span>Errores léxicos</span>
+        </div>
+
+        <div class="metric">
+            <strong id="mCategorias">0</strong>
+            <span>Categorías</span>
+        </div>
+
+    </div>
+
+    <div class="tabs">
+
+        <button class="active" onclick="mostrarTab('tabla',this)">
+            Tabla de tokens
+        </button>
+
+        <button onclick="mostrarTab('errores',this)">
+            Errores
+        </button>
+
+        <button onclick="mostrarTab('visor',this)">
+            Visor de código
+        </button>
+
+        <button onclick="mostrarTab('teoria',this)">
+            Teoría
+        </button>
+
+    </div>
+
+    <div id="tabla" class="tab">
+
+        <div class="table-wrap">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Lexema</th>
+                        <th>Categoría</th>
+                        <th>Línea</th>
+                        <th>Columna</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+
+                <tbody id="filas">
+                    <tr>
+                        <td colspan="5">
+                            Todavía no hay resultados.
+                        </td>
+                    </tr>
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div id="errores" class="tab hidden">
+
+        <div id="listaErrores" class="result-box">
+            No hay resultados.
+        </div>
+
+        <h3>Anomalías orientativas</h3>
+
+        <div id="anomalias" class="result-box">
+            No hay resultados.
+        </div>
+
+    </div>
+
+    <div id="visor" class="tab hidden">
+
+        <div id="visorCodigo" class="result-box token-view">
+            El código analizado aparecerá aquí.
+        </div>
+
+    </div>
+
+    <div id="teoria" class="tab hidden">
+
+        <div class="result-box">
+
+            <b>¿Qué es un token?</b>
+
+            <br>
+
+            Es la unidad mínima con significado que reconoce el analizador léxico.
+
+            <br><br>
+
+            <b>Categorías reconocidas:</b>
+
+            palabras reservadas, identificadores, números, cadenas,
+            operadores, delimitadores, puntuación y comentarios.
+
+            <br><br>
+
+            <b>Error léxico:</b>
+
+            aparece cuando un fragmento no cumple las reglas de
+            reconocimiento del lenguaje.
+
+            <br><br>
+
+            <b>Nota:</b>
+
+            las anomalías de operadores consecutivos son advertencias
+            orientativas; no sustituyen un análisis sintáctico completo.
+
+        </div>
+
+    </div>
+
+    <div class="toolbar">
+
+        <button onclick="copiarReporte()">
+            ⧉ Copiar reporte
+        </button>
+
+    </div>
+
+</section>
+
+</main>
+
+<footer>
+    YAS · Analizador de Errores Léxicos · Proyecto académico
+</footer>
+
+<script>
+
+let ultimoResultado = null;
+
+const codigo = document.getElementById("codigo");
+
+codigo.addEventListener("input", actualizarEditor);
+
+function actualizarEditor() {
+
+    const lineas = codigo.value.split("\n").length;
+
+    document.getElementById("gutter").textContent =
+        Array.from({length: lineas}, (_, i) => i + 1).join("\n");
+
+    document.getElementById("contador").textContent =
+        `${codigo.value.length} caracteres · ${lineas} línea(s)`;
+
+}
+
+function cargarEjemplo(texto) {
+
+    codigo.value = texto;
+
+    actualizarEditor();
+
+}
+
+function limpiar() {
+
+    codigo.value = "";
+
+    actualizarEditor();
+
+    ultimoResultado = null;
+
+    document.getElementById("estado").className = "status";
+
+    document.getElementById("estado").textContent =
+        "Escribe código y presiona “Analizar código”.";
+
+    ["mTotal", "mValidos", "mErrores", "mCategorias"].forEach(id => {
+        document.getElementById(id).textContent = "0";
+    });
+
+    document.getElementById("filas").innerHTML =
+        '<tr><td colspan="5">Todavía no hay resultados.</td></tr>';
+
+    document.getElementById("listaErrores").textContent =
+        "No hay resultados.";
+
+    document.getElementById("anomalias").textContent =
+        "No hay resultados.";
+
+    document.getElementById("visorCodigo").textContent =
+        "El código analizado aparecerá aquí.";
+
+}
+
+async function analizar() {
+
+    if (!codigo.value.trim()) {
+
+        alert("Escribe o carga un código antes de analizar.");
+
+        return;
+
+    }
+
+    const boton = document.querySelector("button.primary");
+
+    boton.disabled = true;
+
+    boton.textContent = "Analizando...";
+
+    try {
+
+        const respuesta = await fetch("/analizar", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+
+                codigo: codigo.value,
+
+                lenguaje: document.getElementById("lenguaje").value
+
+            })
+
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(datos.error || "No se pudo analizar.");
+        }
+
+        ultimoResultado = datos;
+
+        mostrarResultados(datos);
+
+    } catch (error) {
+
+        alert("Ocurrió un problema: " + error.message);
+
+    } finally {
+
+        boton.disabled = false;
+
+        boton.textContent = "▶ Analizar código";
+
+    }
+
+}
+
+function escapar(texto) {
+
+    return String(texto).replace(/[&<>"']/g, caracter => ({
+
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+
+    }[caracter]));
+
+}
+
+function mostrarResultados(datos) {
+
+    document.getElementById("mTotal").textContent =
+        datos.total_tokens;
+
+    document.getElementById("mValidos").textContent =
+        datos.tokens_validos;
+
+    document.getElementById("mErrores").textContent =
+        datos.total_errores;
+
+    document.getElementById("mCategorias").textContent =
+        Object.keys(datos.por_categoria).length;
+
+    const estado = document.getElementById("estado");
+
+    estado.className =
+        "status" + (datos.total_errores ? " error" : "");
+
+    estado.textContent =
+        datos.mensaje_general + " Lenguaje: " + datos.lenguaje + ".";
+
+    document.getElementById("filas").innerHTML =
+        datos.tokens.map(t => `
+
+            <tr>
+
+                <td><code>${escapar(t.lexema)}</code></td>
+
+                <td>${escapar(t.categoria)}</td>
+
+                <td>${t.linea}</td>
+
+                <td>${t.columna}</td>
+
+                <td>
+                    <span class="pill ${t.valido ? "good" : "bad"}">
+                        ${t.estado}
+                    </span>
+                </td>
+
+            </tr>
+
+        `).join("") ||
+        '<tr><td colspan="5">No se reconocieron tokens.</td></tr>';
+
+    document.getElementById("listaErrores").innerHTML =
+        datos.errores.length
+
+        ? datos.errores.map(e => `
+
+            • Línea ${e.linea}, columna ${e.columna}:
+
+            <b>${escapar(e.lexema)}</b> —
+
+            ${escapar(e.descripcion_error)}
+
+        `).join("<br>")
+
+        : "No se encontraron errores léxicos.";
+
+    document.getElementById("anomalias").innerHTML =
+        datos.anomalias_sintacticas.length
+
+        ? datos.anomalias_sintacticas.map(a => `
+
+            • Línea ${a.linea}, columna ${a.columna}:
+
+            ${escapar(a.mensaje)}
+
+        `).join("<br>")
+
+        : "No se detectaron anomalías orientativas.";
+
+    const clases = {
+
+        "Palabra reservada": "token-reserved",
+        "Identificador": "token-identifier",
+        "Número": "token-number",
+        "Cadena": "token-string",
+        "Comentario": "token-comment",
+        "Operador": "token-operator",
+        "Delimitador": "token-delimiter",
+        "Puntuación": "token-delimiter",
+        "Error léxico": "token-error"
+
+    };
+
+    let html = "";
+
+    let posicion = 0;
+
+    for (const token of datos.tokens) {
+
+        html += escapar(
+            codigo.value.slice(posicion, token.start_idx)
+        );
+
+        html += `
+
+            <span
+                class="token ${clases[token.categoria] || ""}"
+                title="${escapar(token.categoria)}"
+            >
+                ${escapar(token.lexema)}
+            </span>
+
+        `;
+
+        posicion = token.end_idx;
+
+    }
+
+    html += escapar(codigo.value.slice(posicion));
+
+    document.getElementById("visorCodigo").innerHTML = html;
+
+}
+
+function mostrarTab(id, boton) {
+
+    document.querySelectorAll(".tab").forEach(elemento => {
+        elemento.classList.add("hidden");
+    });
+
+    document.getElementById(id).classList.remove("hidden");
+
+    document.querySelectorAll(".tabs button").forEach(elemento => {
+        elemento.classList.remove("active");
+    });
+
+    boton.classList.add("active");
+
+}
+
+async function copiarReporte() {
+
+    if (!ultimoResultado) {
+
+        alert("Primero realiza un análisis.");
+
+        return;
+
+    }
+
+    const datos = ultimoResultado;
+
+    const texto = `
+
+YAS - REPORTE DE ANÁLISIS
+
+Lenguaje: ${datos.lenguaje}
+
+Estado: ${datos.estado_general}
+
+Total de tokens: ${datos.total_tokens}
+
+Tokens válidos: ${datos.tokens_validos}
+
+Errores: ${datos.total_errores}
+
+
+` + datos.tokens.map(t =>
+
+        `${t.lexema} | ${t.categoria} | Línea ${t.linea}, columna ${t.columna} | ${t.estado}`
+
+    ).join("\n");
+
+    try {
+
+        await navigator.clipboard.writeText(texto);
+
+        alert("Reporte copiado.");
+
+    } catch (error) {
+
+        alert("No fue posible copiar automáticamente.");
+
+    }
+
+}
+
+actualizarEditor();
+
+</script>
+
+</body>
+</html>
